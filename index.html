@@ -1,0 +1,82 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Facharztprüfung Quiz</title>
+<style>
+body{font-family:Arial,sans-serif;max-width:900px;margin:20px auto;padding:20px}
+.card{border:1px solid #ddd;border-radius:10px;padding:20px}
+button.option{display:block;width:100%;margin:8px 0;padding:12px;text-align:left}
+.correct{background:#c8f7c5}
+.wrong{background:#ffd0d0}
+</style>
+</head>
+<body>
+<h1>Facharztprüfung Quiz</h1>
+<p id="progress">Lade Fragen...</p>
+<div class="card">
+<h2 id="question"></h2>
+<div id="options"></div>
+<p id="feedback"></p>
+<button onclick="nextQuestion()">Nächste Frage</button>
+</div>
+
+<script>
+let questions=[];
+let current=0;
+let score=0;
+
+fetch('questions.json')
+.then(r=>r.json())
+.then(data=>{
+  questions=data.sort(()=>Math.random()-0.5);
+  showQuestion();
+});
+
+function showQuestion(){
+  const q=questions[current];
+  document.getElementById('progress').innerText =
+    `Frage ${current+1} von ${questions.length} | Punkte: ${score}`;
+  document.getElementById('question').innerText=q.question;
+  document.getElementById('feedback').innerText='';
+
+  const optionsDiv=document.getElementById('options');
+  optionsDiv.innerHTML='';
+
+  for(const [key,val] of Object.entries(q.options)){
+    const btn=document.createElement('button');
+    btn.className='option';
+    btn.innerText=`${key}: ${val}`;
+    btn.onclick=()=>checkAnswer(key,btn);
+    optionsDiv.appendChild(btn);
+  }
+}
+
+function checkAnswer(choice,btn){
+  const q=questions[current];
+  const buttons=document.querySelectorAll('.option');
+  buttons.forEach(b=>b.disabled=true);
+
+  if(choice===q.correct){
+    btn.classList.add('correct');
+    score++;
+    document.getElementById('feedback').innerText='✅ Richtig! '+q.explanation;
+  } else {
+    btn.classList.add('wrong');
+    document.getElementById('feedback').innerText=
+      `❌ Falsch. Richtige Antwort: ${q.correct}. ${q.explanation}`;
+  }
+}
+
+function nextQuestion(){
+  current++;
+  if(current>=questions.length){
+    document.body.innerHTML=`<h1>Fertig!</h1><p>Ergebnis: ${score}/${questions.length}</p>`;
+    return;
+  }
+  showQuestion();
+}
+</script>
+</body>
+</html>
