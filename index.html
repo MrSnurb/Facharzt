@@ -1,82 +1,274 @@
 <!DOCTYPE html>
 <html lang="de">
 <head>
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Facharztprüfung Quiz</title>
-<style>
-body{font-family:Arial,sans-serif;max-width:900px;margin:20px auto;padding:20px}
-.card{border:1px solid #ddd;border-radius:10px;padding:20px}
-button.option{display:block;width:100%;margin:8px 0;padding:12px;text-align:left}
-.correct{background:#c8f7c5}
-.wrong{background:#ffd0d0}
-</style>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Facharztprüfung - Pädiatrie Quiz</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.4.1/papaparse.min.js"></script>
+    <style>
+        :root {
+            --primary-color: #2c3e50;
+            --accent-color: #3498db;
+            --success-color: #2ecc71;
+            --error-color: #e74c3c;
+            --bg-color: #f8f9fa;
+        }
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background-color: var(--bg-color);
+            color: #333;
+            line-height: 1.6;
+            margin: 0;
+            padding: 20px;
+            display: flex;
+            justify-content: center;
+        }
+        .app-container {
+            background: white;
+            max-width: 800px;
+            width: 100%;
+            border-radius: 12px;
+            box-shadow: 0 5px 15px rgba(0,0,0,0.1);
+            padding: 30px;
+            box-sizing: border-box;
+        }
+        h1 {
+            color: var(--primary-color);
+            text-align: center;
+            border-bottom: 2px solid #eee;
+            padding-bottom: 10px;
+        }
+        .meta-info {
+            display: flex;
+            justify-content: space-between;
+            font-size: 0.9em;
+            color: #666;
+            margin-bottom: 20px;
+        }
+        .question-text {
+            font-size: 1.2em;
+            font-weight: 600;
+            margin-bottom: 20px;
+        }
+        .options-grid {
+            display: grid;
+            gap: 12px;
+        }
+        .option-btn {
+            background: #fff;
+            border: 2px solid #ddd;
+            padding: 15px;
+            border-radius: 8px;
+            font-size: 1em;
+            cursor: pointer;
+            text-align: left;
+            transition: all 0.2s;
+        }
+        .option-btn:hover:not(:disabled) {
+            border-color: var(--accent-color);
+            background-color: #f1f8ff;
+        }
+        .option-btn:disabled {
+            cursor: not-allowed;
+        }
+        .correct {
+            background-color: #e8f8f5 !important;
+            border-color: var(--success-color) !important;
+            color: #1e8449;
+        }
+        .wrong {
+            background-color: #fdedec !important;
+            border-color: var(--error-color) !important;
+            color: #c0392b;
+        }
+        .explanation {
+            margin-top: 20px;
+            padding: 15px;
+            background-color: #fff3cd;
+            border-left: 5px solid #ffc107;
+            border-radius: 4px;
+            display: none;
+        }
+        .controls {
+            margin-top: 25px;
+            text-align: right;
+        }
+        .next-btn {
+            background-color: var(--accent-color);
+            color: white;
+            border: none;
+            padding: 12px 25px;
+            font-size: 1em;
+            border-radius: 6px;
+            cursor: pointer;
+            display: none;
+        }
+        .next-btn:hover {
+            background-color: #2980b9;
+        }
+        #loading {
+            text-align: center;
+            font-size: 1.2em;
+            color: #666;
+            padding: 40px;
+        }
+        .badge {
+            background: #eee;
+            padding: 4px 8px;
+            border-radius: 4px;
+            font-weight: bold;
+        }
+    </style>
 </head>
 <body>
-<h1>Facharztprüfung Quiz</h1>
-<p id="progress">Lade Fragen...</p>
-<div class="card">
-<h2 id="question"></h2>
-<div id="options"></div>
-<p id="feedback"></p>
-<button onclick="nextQuestion()">Nächste Frage</button>
+
+<div class="app-container">
+    <h1>Facharzt-Quiz</h1>
+    
+    <div id="loading">Fragen werden geladen...</div>
+
+    <div id="quiz-area" style="display: none;">
+        <div class="meta-info">
+            <span id="question-counter">Frage 1 / 500</span>
+            <span id="question-topic" class="badge">Thema</span>
+            <span id="question-difficulty" class="badge">Schwierigkeit</span>
+        </div>
+
+        <div class="question-text" id="question-text">
+            Hier steht die Frage?
+        </div>
+
+        <div class="options-grid" id="options-grid">
+            </div>
+
+        <div class="explanation" id="explanation">
+            <strong>Vollständige Antwort:</strong> <span id="explanation-text"></span>
+        </div>
+
+        <div class="controls">
+            <button class="next-btn" id="next-btn" onclick="nextQuestion()">Nächste Frage</button>
+        </div>
+    </div>
+
+    <div id="result-area" style="display: none; text-align: center;">
+        <h2>Quiz beendet!</h2>
+        <p style="font-size: 1.5em;">Du hast <strong id="score">0</strong> von <strong id="total-questions">0</strong> Fragen richtig beantwortet.</p>
+        <button class="next-btn" style="display: inline-block; margin-top: 20px;" onclick="location.reload()">Quiz neu starten</button>
+    </div>
 </div>
 
 <script>
-let questions=[];
-let current=0;
-let score=0;
+    // Globale Variablen
+    let allQuestions = [];
+    let currentQuestionIndex = 0;
+    let score = 0;
 
-fetch('questions.json')
-.then(r=>r.json())
-.then(data=>{
-  questions=data.sort(()=>Math.random()-0.5);
-  showQuestion();
-});
+    // CSV-Datei beim Start laden
+    // ACHTUNG: Der Name der Datei muss hier exakt mit der hochgeladenen Datei übereinstimmen
+    Papa.parse("fragen.csv", {
+        download: true,
+        header: true,
+        skipEmptyLines: true,
+        complete: function(results) {
+            // Filtern: Nur Zeilen behalten, die auch wirklich eine Frage haben
+            allQuestions = results.data.filter(row => row.Frage && row.Frage.trim() !== "");
+            
+            if (allQuestions.length > 0) {
+                document.getElementById('loading').style.display = 'none';
+                document.getElementById('quiz-area').style.display = 'block';
+                showQuestion();
+            } else {
+                document.getElementById('loading').innerText = "Fehler: Keine Fragen gefunden. Bitte CSV-Format prüfen.";
+            }
+        },
+        error: function(err) {
+            document.getElementById('loading').innerText = "Fehler beim Laden der CSV-Datei. Läuft die App auf einem Webserver?";
+            console.error(err);
+        }
+    });
 
-function showQuestion(){
-  const q=questions[current];
-  document.getElementById('progress').innerText =
-    `Frage ${current+1} von ${questions.length} | Punkte: ${score}`;
-  document.getElementById('question').innerText=q.question;
-  document.getElementById('feedback').innerText='';
+    function showQuestion() {
+        // UI zurücksetzen
+        document.getElementById('options-grid').innerHTML = '';
+        document.getElementById('explanation').style.display = 'none';
+        document.getElementById('next-btn').style.display = 'none';
 
-  const optionsDiv=document.getElementById('options');
-  optionsDiv.innerHTML='';
+        const q = allQuestions[currentQuestionIndex];
 
-  for(const [key,val] of Object.entries(q.options)){
-    const btn=document.createElement('button');
-    btn.className='option';
-    btn.innerText=`${key}: ${val}`;
-    btn.onclick=()=>checkAnswer(key,btn);
-    optionsDiv.appendChild(btn);
-  }
-}
+        // Meta-Infos setzen
+        document.getElementById('question-counter').innerText = `Frage ${currentQuestionIndex + 1} / ${allQuestions.length}`;
+        document.getElementById('question-topic').innerText = q.Themengebiet || 'Allgemein';
+        document.getElementById('question-difficulty').innerText = q.Schwierigkeit || '';
+        
+        // Frage setzen
+        document.getElementById('question-text').innerText = q.Frage;
 
-function checkAnswer(choice,btn){
-  const q=questions[current];
-  const buttons=document.querySelectorAll('.option');
-  buttons.forEach(b=>b.disabled=true);
+        // Optionen erstellen (A, B, C, D)
+        const options = [
+            { letter: 'A', text: q['Option A'] },
+            { letter: 'B', text: q['Option B'] },
+            { letter: 'C', text: q['Option C'] },
+            { letter: 'D', text: q['Option D'] }
+        ];
 
-  if(choice===q.correct){
-    btn.classList.add('correct');
-    score++;
-    document.getElementById('feedback').innerText='✅ Richtig! '+q.explanation;
-  } else {
-    btn.classList.add('wrong');
-    document.getElementById('feedback').innerText=
-      `❌ Falsch. Richtige Antwort: ${q.correct}. ${q.explanation}`;
-  }
-}
+        options.forEach(opt => {
+            if (opt.text && opt.text !== "Keine Angabe") {
+                const btn = document.createElement('button');
+                btn.className = 'option-btn';
+                btn.innerText = `${opt.letter}: ${opt.text}`;
+                btn.onclick = () => checkAnswer(opt.letter, btn);
+                document.getElementById('options-grid').appendChild(btn);
+            }
+        });
+    }
 
-function nextQuestion(){
-  current++;
-  if(current>=questions.length){
-    document.body.innerHTML=`<h1>Fertig!</h1><p>Ergebnis: ${score}/${questions.length}</p>`;
-    return;
-  }
-  showQuestion();
-}
+    function checkAnswer(selectedLetter, clickedBtn) {
+        const q = allQuestions[currentQuestionIndex];
+        const correctLetter = q.Richtig.trim().toUpperCase();
+
+        // Alle Buttons deaktivieren, damit nicht mehrfach geklickt wird
+        const allBtns = document.querySelectorAll('.option-btn');
+        allBtns.forEach(btn => {
+            btn.disabled = true;
+            // Richtig Antwort immer grün markieren
+            if (btn.innerText.startsWith(correctLetter)) {
+                btn.classList.add('correct');
+            }
+        });
+
+        // Wenn die ausgewählte Antwort falsch war, rot markieren
+        if (selectedLetter === correctLetter) {
+            score++;
+        } else {
+            clickedBtn.classList.add('wrong');
+        }
+
+        // Erklärung anzeigen, falls vorhanden
+        if (q['Vollständige Antwort'] && q['Vollständige Antwort'] !== "Keine Angabe") {
+            document.getElementById('explanation-text').innerText = q['Vollständige Antwort'];
+            document.getElementById('explanation').style.display = 'block';
+        }
+
+        // Nächste-Frage-Button einblenden
+        document.getElementById('next-btn').style.display = 'inline-block';
+    }
+
+    function nextQuestion() {
+        currentQuestionIndex++;
+        if (currentQuestionIndex < allQuestions.length) {
+            showQuestion();
+        } else {
+            showResults();
+        }
+    }
+
+    function showResults() {
+        document.getElementById('quiz-area').style.display = 'none';
+        document.getElementById('result-area').style.display = 'block';
+        document.getElementById('score').innerText = score;
+        document.getElementById('total-questions').innerText = allQuestions.length;
+    }
 </script>
+
 </body>
 </html>
